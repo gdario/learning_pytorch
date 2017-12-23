@@ -39,14 +39,27 @@ class Net(nn.Module):
         self.shared_dense = nn.Linear(in_features=20, out_features=10)
         self.dense = nn.Linear(20, 2)
 
-    def forward(self, x1, x2):
-        x1 = F.relu(self.shared_dense(x1))
-        x2 = F.relu(self.shared_dense(x2))
-        x = torch.cat([x1, x2], dim=1)
-        x = F.relu(self.dense(x))
-        return x
+    def forward(self, x):
+        x1 = F.relu(self.shared_dense(x[0]))
+        x2 = F.relu(self.shared_dense(x[0]))
+        x3 = torch.cat([x1, x2], dim=1)
+        x3 = F.relu(self.dense(x3))
+        return x3
 
 
 net = Net()
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
+optimizer = optim.SGD(net.parameters(), lr=0.05, momentum=0.9)
+
+for epoch in range(10):
+    for i, data in enumerate(dataloader, 0):
+        inputs, labels = data
+        inputs = [Variable(inputs[0]), Variable(inputs[1])]
+        labels = Variable(labels)
+        optimizer.zero_grad()
+        output = net(inputs)
+        loss = criterion(output, labels)
+        loss.backward()
+        optimizer.step()
+
+    print('Epoch: {}; Loss: {}'.format(epoch, loss))
