@@ -3,10 +3,10 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torchvision
 import torch.nn.functional as F
-import numpy as np
+# import numpy as np
 import torchvision.transforms as transforms
 import torch.optim as optim
-import ipdb
+# import ipdb
 
 
 transform = transforms.Compose([transforms.ToTensor(),
@@ -62,7 +62,6 @@ for epoch in range(10):
         if (i + 1) % 100 == 0:
             print('Epoch: {}; Step {}; Loss: {:.3f}'.format(
                 (epoch + 1), 64 * (i + 1), running_loss / (i + 1)))
-    running_loss = 0.0
 
 
 # Performance on the test set
