@@ -74,7 +74,7 @@ for epoch in range(70):
 
         model.zero_grad()
         log_probs = model(context_var)
-
+        # import ipdb; ipdb.set_trace()
         target_var = autograd.Variable(torch.LongTensor([word_to_ix[target]]))
         loss = loss_function(log_probs, target_var)
         loss.backward()

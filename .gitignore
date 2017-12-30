@@ -1,3 +1,6 @@
 data/
 examples/
 *~
+.idea/
+notebooks/.ipynb_checkpoints/
+*.pkl
