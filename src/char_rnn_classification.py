@@ -10,15 +10,11 @@ import random
 import time
 import math
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+# import matplotlib.ticker as ticker
 
 
 def find_files(path):
     return glob.glob(path)
-
-
-all_letters = string.ascii_letters + " .,;'"
-n_letters = len(all_letters)
 
 
 def unicode_to_ascii(s):
@@ -29,24 +25,9 @@ def unicode_to_ascii(s):
     )
 
 
-category_lines = {}
-all_categories = []
-
-
 def read_lines(filename):
     lines = open(filename, encoding='utf-8').read().strip().split('\n')
     return [unicode_to_ascii(line) for line in lines]
-
-
-for filename in find_files('data/names/*.txt'):
-    category = filename.split('/')[-1].split('.')[0]
-    all_categories.append(category)
-    lines = read_lines(filename)
-    category_lines[category] = lines
-
-n_categories = len(all_categories)
-
-# Utility functions to turn names into tensors
 
 
 def letter_to_index(letter):
@@ -64,6 +45,66 @@ def line_to_tensor(line):
     for li, letter in enumerate(line):
         tensor[li][0][letter_to_index(letter)] = 1
     return tensor
+
+
+def category_from_output(output):
+    top_n, top_i = output.data.topk(1)
+    category_i = top_i[0][0]
+    return all_categories[category_i], category_i
+
+
+def random_choice(lst):
+    return lst[random.randint(0, len(lst) - 1)]
+
+
+def random_training_example():
+    category = random_choice(all_categories)
+    line = random_choice(category_lines[category])
+    category_tensor = Variable(torch.LongTensor(
+        [all_categories.index(category)])
+    )
+    line_tensor = Variable(line_to_tensor(line))
+    return category, line, category_tensor, line_tensor
+
+
+def time_since(since):
+    now = time.time()
+    s = now - since
+    m = math.floor(s / 60)
+    s -= m * 60
+    return '%dm %ds' % (m, s)
+
+
+def train(category_tensor, line_tensor):
+    hidden = rnn.init_hidden()
+    rnn.zero_grad()
+
+    for i in range(line_tensor.size()[0]):
+        output, hidden = rnn(line_tensor[i], hidden)
+
+    loss = criterion(output, category_tensor)
+    loss.backward()
+
+    for p in rnn.parameters():
+        p.data.add_(-learning_rate, p.grad.data)
+
+    return output, loss.data[0]
+
+
+all_letters = string.ascii_letters + " .,;'"
+n_letters = len(all_letters)
+
+category_lines = {}
+all_categories = []
+
+n_categories = len(all_categories)
+
+
+for filename in find_files('data/names/*.txt'):
+    category = filename.split('/')[-1].split('.')[0]
+    all_categories.append(category)
+    lines = read_lines(filename)
+    category_lines[category] = lines
 
 
 class RNN(nn.Module):
@@ -88,64 +129,15 @@ class RNN(nn.Module):
 
 n_hidden = 128
 rnn = RNN(n_letters, n_hidden, n_categories)
-
-
-def category_from_output(output):
-    top_n, top_i = output.data.topk(1)
-    category_i = top_i[0][0]
-    return all_categories[category_i], category_i
-
-
-def random_choice(lst):
-    return lst[random.randint(0, len(lst) - 1)]
-
-
-def random_training_example():
-    category = random_choice(all_categories)
-    line = random_choice(category_lines[category])
-    category_tensor = Variable(torch.LongTensor(
-        [all_categories.index(category)])
-    )
-    line_tensor = Variable(line_to_tensor(line))
-    return category, line, category_tensor, line_tensor
-
-
 learning_rate = 0.005
 criterion = nn.NLLLoss()
-
-
-def train(category_tensor, line_tensor):
-    hidden = rnn.init_hidden()
-    rnn.zero_grad()
-
-    for i in range(line_tensor.size()[0]):
-        output, hidden = rnn(line_tensor[i], hidden)
-
-    loss = criterion(output, category_tensor)
-    loss.backward()
-
-    for p in rnn.parameters():
-        p.data.add_(-learning_rate, p.grad.data)
-
-    return output, loss.data[0]
-
 
 n_iters = 100000
 print_every = 5000
 plot_every = 1000
 
-
 current_loss = 0
 all_losses = []
-
-
-def time_since(since):
-    now = time.time()
-    s = now - since
-    m = math.floor(s / 60)
-    s -= m * 60
-    return '%dm %ds' % (m, s)
-
 
 start = time.time()
 
