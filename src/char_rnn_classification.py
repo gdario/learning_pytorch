@@ -91,22 +91,6 @@ def train(category_tensor, line_tensor):
     return output, loss.data[0]
 
 
-all_letters = string.ascii_letters + " .,;'"
-n_letters = len(all_letters)
-
-category_lines = {}
-all_categories = []
-
-n_categories = len(all_categories)
-
-
-for filename in find_files('data/names/*.txt'):
-    category = filename.split('/')[-1].split('.')[0]
-    all_categories.append(category)
-    lines = read_lines(filename)
-    category_lines[category] = lines
-
-
 class RNN(nn.Module):
 
     def __init__(self, input_size, hidden_size, output_size):
@@ -127,12 +111,28 @@ class RNN(nn.Module):
         return Variable(torch.zeros(1, self.hidden_size))
 
 
+all_letters = string.ascii_letters + " .,;'"
+n_letters = len(all_letters)
+
+category_lines = {}
+all_categories = []
+
+for filename in find_files('data/names/*.txt'):
+    category = filename.split('/')[-1].split('.')[0]
+    all_categories.append(category)
+    lines = read_lines(filename)
+    category_lines[category] = list(set(lines))
+
+n_categories = len(all_categories)
+
 n_hidden = 128
+
 rnn = RNN(n_letters, n_hidden, n_categories)
+# learning_rate = 0.005
 learning_rate = 0.005
 criterion = nn.NLLLoss()
 
-n_iters = 100000
+n_iters = 200000
 print_every = 5000
 plot_every = 1000
 
