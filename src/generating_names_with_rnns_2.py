@@ -1,11 +1,13 @@
-import matplotlib.pyplot as plt
+# import ipdb
+import numpy as np
 import time
 import string
 import glob
-import torch
 import math
 import random
 import unicodedata
+import matplotlib.pyplot as plt
+import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.optim as optim
@@ -88,21 +90,21 @@ def time_since(since):
 def sample(category, start_letter='A'):
     """Sample a category and provide an initial letter for name generation."""
     categ_tensor = Variable(category_tensor(category))
-    input = Variable(input_tensor(start_letter))
+    inputs = Variable(input_tensor(start_letter))
     hidden = rnn.init_hidden()
 
     output_name = start_letter
 
     for i in range(max_length):
-        output, hidden = rnn(categ_tensor, input[0], hidden)
-        topv, topi = output.data.topk(1)
-        topi = topi[0][0]
-        if topi == n_letters - 1:
+        output, hidden = rnn(categ_tensor, inputs[0], hidden)
+        probs = torch.exp(output).view(-1).data.numpy()
+        idx = np.random.choice(range(n_letters), p=probs)
+        if idx == n_letters - 1:
             break
         else:
-            letter = all_letters[topi]
+            letter = all_letters[idx]
             output_name += letter
-        input = Variable(input_tensor(letter))
+        inputs = Variable(input_tensor(letter))
 
     return output_name
 
@@ -118,6 +120,7 @@ print_every = 5000
 plot_every = 500
 all_losses = []
 total_loss = 0
+learning_rate = 0.0005
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters) + 1  # Include the EOS marker
@@ -144,17 +147,14 @@ class RNN(nn.Module):
         self.i2o = nn.Linear(n_categories + input_size + hidden_size,
                              output_size)
         self.o2o = nn.Linear(hidden_size + output_size, output_size)
-        self.dropout = nn.Dropout(0.1)
         self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, category, inputs, hidden):
-        # import ipdb; ipdb.set_trace()
         input_combined = torch.cat((category, inputs, hidden), 1)
         hidden = self.i2h(input_combined)
         output = self.i2o(input_combined)
         output_combined = torch.cat((hidden, output), 1)
         output = self.o2o(output_combined)
-        output = self.dropout(output)
         output = self.softmax(output)
         return output, hidden
 
@@ -165,8 +165,8 @@ class RNN(nn.Module):
 rnn = RNN(n_letters, 128, n_letters)
 
 criterion = nn.NLLLoss()
-learning_rate = 0.0005
-optimizer = optim.SGD(rnn.parameters(), lr=learning_rate)
+optimizer = optim.Adam(params=rnn.parameters(), lr=learning_rate)
+# optimizer = optim.SGD(rnn.parameters(), lr=learning_rate)
 
 
 def train(category_tensor, input_line_tensor, target_line_tensor):
@@ -207,10 +207,8 @@ plt.show()
 max_length = 20
 
 
-samples('Russian', 'RUS')
-
-samples('German', 'GER')
-
-samples('Spanish', 'SPA')
-
-samples('Chinese', 'CHI')
+samples('Italian', 'AAA')
+# samples('Russian', 'RUS')
+# samples('German', 'GER')
+# samples('Spanish', 'SPA')
+# samples('Chinese', 'CHI')
