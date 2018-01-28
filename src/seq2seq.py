@@ -374,7 +374,7 @@ def show_plot(points):
 def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
     input_variable = variable_from_sentence(input_lang, sentence)
     input_length = input_variable.size()[0]
-    encoder_hidden = encoder.initHidden()
+    encoder_hidden = encoder.init_hidden()
 
     encoder_outputs = Variable(torch.zeros(max_length, encoder.hidden_size))
     encoder_outputs = encoder_outputs.cuda() if use_cuda else encoder_outputs
