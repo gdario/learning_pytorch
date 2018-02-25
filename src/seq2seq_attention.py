@@ -58,17 +58,34 @@ class Lang:
 
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, n_layers=1):
+    def __init__(self, input_size, encoder_hidden_size, n_layers=1):
+        """
+        Encoder class
+        :param input_size: int. The input language vocabulary size.
+        :param encoder_hidden_size: int. The number of hidden units in the
+            recurrent layer.
+        :param n_layers: int. The number of hidden recurrent layers.
+        """
         super(EncoderRNN, self).__init__()
 
         self.input_size = input_size
-        self.hidden_size = hidden_size
+        self.hidden_size = encoder_hidden_size
         self.n_layers = n_layers
 
-        self.embedding = nn.Embedding(input_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size, n_layers)
+        self.embedding = nn.Embedding(input_size, encoder_hidden_size)
+        self.gru = nn.GRU(encoder_hidden_size, encoder_hidden_size, n_layers)
 
     def forward(self, word_inputs, hidden):
+        """
+        Forward function for the encoder.
+        :param word_inputs: Variable containing the input words.
+            Shape: (seq_len, 1, input_size)
+        :param hidden: Variable containing the hidden state at time t-1.
+            Shape: (1, 1, encoder_hidden_size)
+        :return: a Variable containing the hidden recurrent hidden states at
+            each time point.
+            Shape: (seq_len, 1, encoder_hidden_size).
+        """
         # Note: we run this all at once (over the whole input sequence)
         seq_len = len(word_inputs)
         embedded = self.embedding(word_inputs).view(seq_len, 1, -1)
@@ -83,20 +100,37 @@ class EncoderRNN(nn.Module):
 
 
 class Attn(nn.Module):
-    def __init__(self, method, hidden_size, max_length=MAX_LENGTH):
+    def __init__(self, method, decoder_hidden_size):
+        """
+        Attention class initializer.
+        :param method: string. The type of attention to be used. Can be 'dot',
+            'general', 'concat'.
+        :param decoder_hidden_size: int. Number of units in the decoder's
+            recurrent hidden layer.
+        """
         super(Attn, self).__init__()
 
         self.method = method
-        self.hidden_size = hidden_size
+        self.hidden_size = decoder_hidden_size
 
         if self.method == 'general':
-            self.attn = nn.Linear(self.hidden_size, hidden_size)
+            self.attn = nn.Linear(self.hidden_size, decoder_hidden_size)
 
         elif self.method == 'concat':
-            self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
-            self.other = nn.Parameter(torch.FloatTensor(1, hidden_size))
+            self.attn = nn.Linear(self.hidden_size * 2, decoder_hidden_size)
+            self.other = nn.Parameter(
+                torch.FloatTensor(1, decoder_hidden_size))
 
     def forward(self, hidden, encoder_outputs):
+        """
+        Forward pass in the Attention class.
+        :param hidden: Variable containing the decoder's hidden state at time
+            t - 1. Shape: (1, 1, decoder_hidden_size).
+        :param encoder_outputs: Variable containing the outputs of the encoder.
+            Shape: (seq_len, 1, encoder_hidden_size)
+        :return: Variable with the softmax-normlized attention energies.
+            Shape: (1, 1, seq_len).
+        """
         seq_len = len(encoder_outputs)
 
         # Create variable to store attention energies
@@ -110,10 +144,18 @@ class Attn(nn.Module):
 
         # Normalize energies to weights in range 0 to 1, resize to 1 x
         # 1 x seq_len
-        return F.softmax(attn_energies).unsqueeze(0).unsqueeze(0)
+        return F.softmax(attn_energies, dim=0).view(1, 1, -1)
 
     def score(self, hidden, encoder_output):
-
+        """
+        Calculate the un-normalized attention energies.
+        :param hidden: Variable containing the decoder's hidden state at time
+            t - 1. Shape: (1, 1, decoder_hidden_state).
+        :param encoder_output: Variable containing the outputs of the encoder.
+            Shape: (seq_len, 1, encoder_hidden_size)
+        :return: Variable containing the attention energies.
+            Shape: (1, 1, seq_len)
+        """
         if self.method == 'dot':
             energy = hidden.dot(encoder_output)
             return energy
@@ -130,32 +172,55 @@ class Attn(nn.Module):
 
 
 class AttnDecoderRNN(nn.Module):
-    def __init__(self, attn_model, hidden_size, output_size,
+
+    def __init__(self, attention_model, decoder_hidden_size, output_size,
                  n_layers=1, dropout_p=0.1):
+        """
+        Attention Decoder initializer.
+        :param attention_model: string. The type of attention model to use.
+        :param decoder_hidden_size: int. Number of units in the decoder's
+            hidden layer.
+        :param output_size: int. The vocabulary size for the output language.
+        :param n_layers: int. Number of hidden recurrent layers.
+        :param dropout_p: float. Dropout rate.
+        """
         super(AttnDecoderRNN, self).__init__()
 
         # Keep parameters for reference
-        self.attn_model = attn_model
-        self.hidden_size = hidden_size
+        self.attn_model = attention_model
+        self.hidden_size = decoder_hidden_size
         self.output_size = output_size
         self.n_layers = n_layers
         self.dropout_p = dropout_p
 
         # Define layers
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(hidden_size * 2, hidden_size, n_layers,
-                          dropout=dropout_p)
-        self.out = nn.Linear(hidden_size * 2, output_size)
+        self.embedding = nn.Embedding(output_size, decoder_hidden_size)
+        self.gru = nn.GRU(decoder_hidden_size * 2, decoder_hidden_size,
+                          n_layers, dropout=dropout_p)
+        self.out = nn.Linear(decoder_hidden_size * 2, output_size)
 
         # Choose attention model
-        if attn_model != 'none':
-            self.attn = Attn(attn_model, hidden_size)
+        if attention_model != 'none':
+            self.attn = Attn(attention_model, decoder_hidden_size)
 
     def forward(self, word_input, last_context, last_hidden, encoder_outputs):
-        # Note: we run this one step at a time
-
+        """
+        Forward pass for the attention decoder.
+        :param word_input: Variable containing the input word.
+            Shape: (seq_len, 1, input_size).
+        :param last_context: Variable containing the context at time t - 1.
+            Shape: (1, encoder_hidden_size)
+        :param last_hidden: Variable containing the decoder's hidden state at
+            time t - 1. Shape: (1, 1, decoder_hidden_size).
+        :param encoder_outputs: Variable containing the encoder's hidden states
+            for the whole sequence. Shape (seq_len, 1, encoder_hidden_size)
+        :return: A tuple containing the decoder's output, the context at time
+            t, the hidden state at time t, the attention weights
+            TODO at what time are the attention weights measured?
+        """
         # Get the embedding of the current input word (last output word)
-        word_embedded = self.embedding(word_input).view(1, 1, -1)  # S=1xBxN
+        # shape (1, 1, N).
+        word_embedded = self.embedding(word_input).view(1, 1, -1)
 
         # Combine embedded input word and last context, run through RNN
         rnn_input = torch.cat((word_embedded, last_context.unsqueeze(0)), 2)
@@ -216,8 +281,8 @@ def read_langs(lang1, lang2, reverse=False):
 
 def filter_pair(p):
     return len(p[0].split(' ')) < MAX_LENGTH and \
-        len(p[1].split(' ')) < MAX_LENGTH and \
-        p[1].startswith(good_prefixes)
+           len(p[1].split(' ')) < MAX_LENGTH and \
+           p[1].startswith(good_prefixes)
 
 
 def filter_pairs(pairs):
@@ -260,8 +325,8 @@ def variables_from_pair(pair):
 
 
 def test_the_model():
-    encoder_test = EncoderRNN(10, 10, 2)
-    decoder_test = AttnDecoderRNN('general', 10, 10, 2)
+    encoder_test = EncoderRNN(10, 10, 1)
+    decoder_test = AttnDecoderRNN('general', 10, 10, 1)
     print(encoder_test)
     print(decoder_test)
 
@@ -294,7 +359,6 @@ def test_the_model():
 def train(input_variable, target_variable, encoder, decoder,
           encoder_optimizer, decoder_optimizer, criterion,
           max_length=MAX_LENGTH):
-
     # Zero gradients of both optimizers
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -394,7 +458,7 @@ criterion = nn.NLLLoss()
 start = time.time()
 plot_losses = []
 print_loss_total = 0  # Reset every print_every
-plot_loss_total = 0   # Reset every plot_every
+plot_loss_total = 0  # Reset every plot_every
 
 # BEGIN TRAINING
 # for epoch in range(1, n_epochs + 1):
@@ -538,3 +602,6 @@ plot_loss_total = 0   # Reset every plot_every
 # evaluate_and_show_attention("je ne crains pas de mourir .")
 
 # evaluate_and_show_attention("c est un jeune directeur plein de talent .")
+
+if __name__ == '__main__':
+    test_the_model()
