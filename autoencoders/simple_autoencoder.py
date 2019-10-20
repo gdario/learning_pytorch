@@ -5,9 +5,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+
+device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
+
 batch_size = 32
-learning_rate = 1e-2
-num_epochs = 50
+learning_rate = 1e-3
+num_epochs = 20
 
 # Initial simple transformation to tensor.
 # Normalization may be needed.
@@ -49,6 +52,7 @@ class Autoencoder(nn.Module):
 
 
 autoencoder = Autoencoder()
+autoencoder.to(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(autoencoder.parameters(), lr=learning_rate)
 
@@ -56,6 +60,7 @@ for epoch in range(num_epochs):
     running_loss = 0.0
     for i, data in enumerate(dataloader, 0):
         inputs, labels = data
+        inputs = inputs.to(device)
         optimizer.zero_grad()
         outputs = autoencoder(inputs)
         loss = criterion(outputs, inputs)
@@ -63,6 +68,6 @@ for epoch in range(num_epochs):
         optimizer.step()
         running_loss += loss.item()
         if i % 500 == 499:
-            print('[Epoch: {:2d}, Samples: {:5d}] loss: {:.4f}'.format(
+            print('[Epoch: {:2d}, Batch: {:5d}] loss: {:.4f}'.format(
                 epoch + 1, i + 1, running_loss / 500))
             running_loss = 0.0
